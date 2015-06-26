@@ -31,14 +31,17 @@ module.exports = function oauth (options) {
     request.get(params, function (err, res, body) {
         people[userId] = body.split('&')[0].split('=')[1];
 
-        console.log(people[userId]);
-        console.log(chatId);
 
         if (people[userId] !== 'bad_verification_code') {
             options.ctx.sendMessage({
                 chat_id: chatId,
                 text: successfullAuthMessage.join('\n')
-            })
+            });
+        } else {
+            options.ctx.sendMessage({
+                chat_id: chatId,
+                text: 'Sorry, something wrong. Try /auth now'
+            });
         }
     });
 };
