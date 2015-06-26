@@ -1,7 +1,9 @@
 var Bot = require('node-telegram-bot');
 var request = require('request');
-var Q = require('q');
+// var Q = require('q');
 var token = require('./token');
+var api = require('./api/github');
+var people = require('./storage/people');
 
 var bot = new Bot({token: token.bot});
 
@@ -11,23 +13,38 @@ var startMessage = [
     'scope=user,repo'
 ];
 
-var oauth = {
-    client_id: token.clientId,
-    client_secret: token.clientSecret,
-    code: null
+var endpoints = {
+    start: function (options) {
+        if (options.code) {
+            api.oauth(options)
+        } else {
+            options.ctx.sendMessage({
+                chat_id: options.message.chat.id,
+                text: 'At this point you must provide an auth code for request access_token.\nType /auth for me.'
+            });
+        }
+    },
+    auth: function (options) {
+        options.ctx.sendMessage({
+            chat_id: options.message.chat.id,
+            text: startMessage.join('&')
+        });
+    }
 };
 
-var people = {};
-
-function getUrl (url, message) {
-    return 'https://api.github.com' + url + '?access_token=' + people[message.from.id];
+function notFoundCommand (options) {
+    options.ctx.sendMessage({
+        chat_id: options.message.chat.id,
+        text: 'I don\'t know the /' + options.command + ' command, sorry.'
+    });
 }
 
 bot.on('message', function (message) {
     var self = this;
-    var chat = message.chat.id;
     var messageData;
     var command;
+    var method;
+    var options;
 
     console.dir(message);
 
@@ -36,50 +53,20 @@ bot.on('message', function (message) {
         messageData = message.text.toLowerCase().replace('@githubpgbbot', '').split(' ');
         command = messageData[0].slice(1);
 
-        if (command === 'start') {
-            if (!people[message.from.id]) {
-                if (messageData[1]) {
-                    oauth.code = messageData[1];
-                    request.get({
-                        url: 'https://github.com/login/oauth/access_token',
-                        form: oauth
-                    },
-                    function (err, res, body) {
-                        console.log(body);
-                        console.log(message.from.id);
-                        people[message.from.id] = body.split('&')[0].split('=')[1];
-                    });
-                } else {
-                    self.sendMessage({
-                        chat_id: chat,
-                        text: startMessage.join('&')
-                    });
-                }
-            }
+        options = {
+            code: messageData[1],
+            command: command,
+            ctx: self,
+            message: message
+        };
+
+        if (!people[message.from.id]) {
+            method = typeof endpoints[command] === 'function' ? endpoints[command] : notFoundCommand;
+        } else {
+            method = typeof api[command] === 'function' ? api[command] : notFoundCommand;
         }
 
-        if (command === 'pulls' && people[message.from.id]) {
-            var options = {
-                url: getUrl('/repos/1pgb/1pgb/pulls', message),
-                headers: {
-                    'User-Agent': 'Awesome-Octocat-App'
-                }
-            };
-            console.log(options.url);
-            request.get(options, function (err, res, body) {
-                body = JSON.parse(body);
-                var message = body.map(function (pull, i) {
-                    var index = i + 1;
-                    return index + '. ' + pull.title + '\nАвтор: @' + pull.user.login + '\nАдрес: ' + pull.html_url + '\n';
-                });
-
-                self.sendMessage({
-                    chat_id: chat,
-                    text: message.join('\n')
-                });
-            });
-        }
-
+        method(options);
     }
 
 });
