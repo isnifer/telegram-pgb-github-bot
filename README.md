@@ -1,3 +1,3 @@
-## The-Village.ru Bot
+## 1pgb github Bot
 
-## get updates from (@TheVillageBot)[https://telegram.me/@TheVillageBot]
+## get updates from [@GithubPgbBot](https://telegram.me/GithubPgbBot)
